@@ -38,6 +38,12 @@ public class ClientApp extends Application {
         List<String> args = getParameters().getRaw();
         if (!args.isEmpty() && !args.get(0).trim().isEmpty()) {
             usernameField.setText(args.get(0).trim());
+            if (args.size() > 1 && !args.get(1).trim().isEmpty()) {
+                hostField.setText(args.get(1).trim());
+            }
+            if (args.size() > 2 && !args.get(2).trim().isEmpty()) {
+                portField.setText(args.get(2).trim());
+            }
             Platform.runLater(this::performLogin);
         }
     }

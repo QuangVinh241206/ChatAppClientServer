@@ -566,7 +566,7 @@ public class MainChatView {
         if (currentTargetType != ChatTargetType.DIRECT) return;
 
         activeCallWindow = new CallWindow(chatClient, currentTargetName, isVideo, false);
-        int localUdpPort = activeCallWindow.prepareIncomingReceiver("127.0.0.1");
+        int localUdpPort = activeCallWindow.prepareIncomingReceiver("0.0.0.0");
 
         chatClient.sendCallRequest(currentTargetName, localUdpPort, isVideo);
         addSystemMessage("Đang gửi yêu cầu " + (isVideo ? "Video Call" : "Voice Call") + " tới [" + currentTargetName + "]...");
@@ -585,8 +585,8 @@ public class MainChatView {
         Optional<ButtonType> result = alert.showAndWait();
         if (result.isPresent() && result.get() == acceptBtn) {
             activeCallWindow = new CallWindow(chatClient, msg.getSender(), msg.isVideoCall(), true);
-            int myUdpPort = activeCallWindow.prepareIncomingReceiver("127.0.0.1");
-            activeCallWindow.connectedWithRemote("127.0.0.1", msg.getUdpPort());
+            int myUdpPort = activeCallWindow.prepareIncomingReceiver("0.0.0.0");
+            activeCallWindow.connectedWithRemote(msg.getSenderHost(), msg.getUdpPort());
             chatClient.sendCallAccept(msg.getSender(), myUdpPort);
         } else {
             chatClient.sendCallReject(msg.getSender());
@@ -595,7 +595,7 @@ public class MainChatView {
 
     private void handleCallAccept(NetworkMessage msg) {
         if (activeCallWindow != null) {
-            activeCallWindow.connectedWithRemote("127.0.0.1", msg.getUdpPort());
+            activeCallWindow.connectedWithRemote(msg.getSenderHost(), msg.getUdpPort());
             addSystemMessage("Cuộc gọi UDP đã được kết nối với [" + msg.getSender() + "]!");
         }
     }

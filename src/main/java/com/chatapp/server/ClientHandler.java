@@ -113,6 +113,7 @@ public class ClientHandler implements Runnable {
             case CALL_END:
                 // Định tuyến tín hiệu cuộc gọi UDP tới đúng người nhận
                 msg.setSender(this.username);
+                msg.setSenderHost(socket.getInetAddress().getHostAddress());
                 server.sendDirectMessage(msg);
                 break;
 

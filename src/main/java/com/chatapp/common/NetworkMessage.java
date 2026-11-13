@@ -25,6 +25,7 @@ public class NetworkMessage implements Serializable {
     private String timestamp;
 
     // Phục vụ cho cuộc gọi UDP Audio / Video
+    private String senderHost;
     private int udpPort;
     private boolean isVideoCall;
 
@@ -76,6 +77,9 @@ public class NetworkMessage implements Serializable {
 
     public String getTimestamp() { return timestamp; }
     public void setTimestamp(String timestamp) { this.timestamp = timestamp; }
+
+    public String getSenderHost() { return senderHost; }
+    public void setSenderHost(String senderHost) { this.senderHost = senderHost; }
 
     public int getUdpPort() { return udpPort; }
     public void setUdpPort(int udpPort) { this.udpPort = udpPort; }

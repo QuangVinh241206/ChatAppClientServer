@@ -29,7 +29,24 @@ Dự án đã được biên dịch sẵn toàn bộ thư viện JavaFX và mã 
    - Cửa sổ **Server Dashboard** sẽ hiện ra và tự động mở cổng TCP `8888`.
 2. **Bước 2 (Chạy 6 Client để chấm điểm):** Nhấp đúp chuột vào file **`run_multi_clients.bat`**.
    - Hệ thống sẽ tự động bật 6 cửa sổ Client với tên: `Alice`, `Bob`, `Charlie`, `David`, `Emma`, `Frank` và tự động đăng nhập kết nối đến Server!
-3. Muốn mở thêm 1 Client tùy ý: Nhấp **`run_client.bat`** và nhập nickname bạn muốn.
+   - Nếu chạy trên máy khác, mở PowerShell tại thư mục dự án và chạy `.\run_multi_clients.bat 192.168.1.10`.
+3. Muốn mở thêm 1 Client tùy ý: chạy `run_client.bat <nickname> <IP-máy-server>`.
+   - Trên **máy server**, dùng `ipconfig` và lấy địa chỉ IPv4 của card mạng đang dùng, ví dụ `192.168.1.10`.
+   - Trên **máy client**, nhập `192.168.1.10` vào ô **Địa chỉ Server IP**, không dùng `127.0.0.1`.
+   - Ví dụ: `run_client.bat Bob 192.168.1.10`
+
+### Kết nối giữa hai máy trong cùng mạng LAN
+
+1. Hai máy phải kết nối cùng Wi-Fi/LAN và nhìn thấy nhau. Từ máy client kiểm tra:
+   ```powershell
+   ping 192.168.1.10
+   Test-NetConnection 192.168.1.10 -Port 8888
+   ```
+2. Bật server trước và giữ cửa sổ **Server Dashboard** đang chạy.
+3. Nếu `Test-NetConnection` báo `TcpTestSucceeded: False`, cho phép Java hoặc TCP port `8888` qua Windows Firewall trên máy server. Có thể kiểm tra nhanh bằng cách tạm cho phép ứng dụng Java qua **Windows Defender Firewall > Allow an app**.
+4. Chức năng voice/video dùng UDP và cần cho phép Java qua firewall trên cả hai máy. Không dùng mạng Guest/isolated Wi-Fi; loại mạng này thường chặn các máy trong cùng Wi-Fi.
+
+`127.0.0.1` chỉ đúng khi server và client chạy trên cùng một máy. Server TCP lắng nghe trên mọi card mạng, nên không cần sửa mã nguồn để đổi IP.
 
 ### Cách 2: Chạy trên Linux (Ubuntu, Debian, Fedora, Arch)
 Trước khi chạy lần đầu, cấp quyền thực thi cho các file script:
@@ -57,7 +74,7 @@ mvn compile
 java --module-path "target\lib" --add-modules javafx.controls,javafx.fxml,javafx.media -cp "target\ChatAppClientServer-1.0-SNAPSHOT.jar;target\lib\*" com.chatapp.server.ServerApp
 
 # Mở Client (có thể mở nhiều cửa sổ terminal khác nhau)
-java --module-path "target\lib" --add-modules javafx.controls,javafx.fxml,javafx.media -cp "target\ChatAppClientServer-1.0-SNAPSHOT.jar;target\lib\*" com.chatapp.client.ClientApp Alice
+java --module-path "target\lib" --add-modules javafx.controls,javafx.fxml,javafx.media -cp "target\ChatAppClientServer-1.0-SNAPSHOT.jar;target\lib\*" com.chatapp.client.ClientApp Alice 192.168.1.10 8888
 ```
 
 ---
