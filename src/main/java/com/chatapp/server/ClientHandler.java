@@ -109,7 +109,6 @@ public class ClientHandler implements Runnable {
 
             case GROUP_JOIN:
                 server.getGroupManager().joinGroup(msg.getContent(), this.username);
-                server.broadcastGroupList();
                 sendNotification("Bạn đã tham gia nhóm '" + msg.getContent() + "'.");
                 break;
 

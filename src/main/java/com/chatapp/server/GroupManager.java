@@ -18,35 +18,56 @@ public class GroupManager {
     }
 
     public synchronized boolean createGroup(String groupName, String creator) {
-        if (groupName == null || groupName.trim().isEmpty() || groups.containsKey(groupName)) {
+        if (groupName == null || groupName.trim().isEmpty()) {
             return false;
+        }
+        String cleanName = groupName.trim();
+        for (String existing : groups.keySet()) {
+            if (existing.equalsIgnoreCase(cleanName)) {
+                return false;
+            }
         }
         Set<String> members = Collections.synchronizedSet(new HashSet<>());
         if (creator != null && !creator.equals("System")) {
-            members.add(creator);
+            members.add(creator.trim());
         }
-        groups.put(groupName.trim(), members);
+        groups.put(cleanName, members);
         return true;
     }
 
     public synchronized boolean joinGroup(String groupName, String username) {
-        Set<String> members = groups.get(groupName);
-        if (members != null) {
-            return members.add(username);
+        if (groupName == null || groupName.trim().isEmpty()) return false;
+        String name = findActualGroupName(groupName.trim());
+        Set<String> members = groups.computeIfAbsent(name, k -> Collections.synchronizedSet(new HashSet<>()));
+        if (username != null && !username.trim().isEmpty()) {
+            return members.add(username.trim());
         }
-        return false;
+        return true;
     }
 
     public synchronized boolean leaveGroup(String groupName, String username) {
-        Set<String> members = groups.get(groupName);
-        if (members != null) {
-            return members.remove(username);
+        if (groupName == null) return false;
+        String name = findActualGroupName(groupName.trim());
+        Set<String> members = groups.get(name);
+        if (members != null && username != null) {
+            return members.remove(username.trim());
         }
         return false;
     }
 
     public Set<String> getGroupMembers(String groupName) {
-        return groups.getOrDefault(groupName, Collections.emptySet());
+        if (groupName == null) return Collections.emptySet();
+        String name = findActualGroupName(groupName.trim());
+        return groups.getOrDefault(name, Collections.emptySet());
+    }
+
+    private String findActualGroupName(String name) {
+        for (String existing : groups.keySet()) {
+            if (existing.equalsIgnoreCase(name)) {
+                return existing;
+            }
+        }
+        return name;
     }
 
     public List<String> getAllGroupNames() {

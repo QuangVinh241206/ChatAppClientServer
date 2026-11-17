@@ -111,7 +111,7 @@ public class ChatServer {
     // --- KỸ THUẬT MULTICAST: Phát tán tới danh sách Client thuộc 1 Nhóm/Phòng cụ thể ---
     public void multicastToGroup(NetworkMessage message) {
         String fullRecipient = message.getRecipient(); // Dạng "GROUP:TenNhom"
-        String groupName = fullRecipient.startsWith("GROUP:") ? fullRecipient.substring(6) : fullRecipient;
+        String groupName = fullRecipient.startsWith("GROUP:") ? fullRecipient.substring(6).trim() : fullRecipient.trim();
 
         // Đảm bảo người gửi cũng tự động tham gia vào nhóm này
         if (message.getSender() != null) {
@@ -122,17 +122,21 @@ public class ChatServer {
 
         log("MULTICAST tin nhắn từ [" + message.getSender() + "] tới nhóm [" + groupName + "] (" + members.size() + " thành viên: " + members + ")");
 
+        boolean senderReceived = false;
         for (String memberName : members) {
             ClientHandler handler = connectedClients.get(memberName.toLowerCase());
             if (handler != null) {
                 handler.sendResponse(message);
+                if (memberName.equalsIgnoreCase(message.getSender())) {
+                    senderReceived = true;
+                }
             }
         }
 
-        // Đảm bảo chính người gửi cũng nhận được tin nhắn nếu chưa có trong members
-        if (message.getSender() != null) {
+        // Đảm bảo chính người gửi cũng nhận được tin nhắn nếu chưa được gửi trong vòng lặp
+        if (!senderReceived && message.getSender() != null) {
             ClientHandler senderHandler = connectedClients.get(message.getSender().toLowerCase());
-            if (senderHandler != null && !members.contains(message.getSender())) {
+            if (senderHandler != null) {
                 senderHandler.sendResponse(message);
             }
         }

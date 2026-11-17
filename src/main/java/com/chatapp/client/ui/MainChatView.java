@@ -66,6 +66,10 @@ public class MainChatView {
     // Quản lý lịch sử tin nhắn theo kênh (Key: "BROADCAST", "GROUP:Name", "DIRECT:Username")
     private final Map<String, List<NetworkMessage>> chatHistoryMap = new java.util.concurrent.ConcurrentHashMap<>();
 
+    // Cờ chống vòng lặp cập nhật danh sách
+    private volatile boolean isUpdatingGroupList = false;
+    private volatile boolean isUpdatingUserList = false;
+
     // UDP Multicast Service demo
     private UdpMulticastService udpMulticastService;
     private TextArea udpMulticastLogArea;
@@ -155,10 +159,20 @@ public class MainChatView {
         groupListView.setPrefHeight(140);
         groupListView.setStyle("-fx-background-radius: 6; -fx-border-color: #edf2f7; -fx-border-radius: 6;");
         groupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null) {
+            if (!isUpdatingGroupList && newVal != null) {
                 if (userListView != null) userListView.getSelectionModel().clearSelection();
                 chatClient.joinGroup(newVal);
                 switchChatTarget(ChatTargetType.GROUP, newVal);
+            }
+        });
+        groupListView.setOnMouseClicked(e -> {
+            if (!isUpdatingGroupList) {
+                String selected = groupListView.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    if (userListView != null) userListView.getSelectionModel().clearSelection();
+                    chatClient.joinGroup(selected);
+                    switchChatTarget(ChatTargetType.GROUP, selected);
+                }
             }
         });
 
@@ -181,9 +195,18 @@ public class MainChatView {
         userListView.setPrefHeight(180);
         userListView.setStyle("-fx-background-radius: 6; -fx-border-color: #edf2f7; -fx-border-radius: 6;");
         userListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && !newVal.equals(chatClient.getUsername())) {
+            if (!isUpdatingUserList && newVal != null && !newVal.equals(chatClient.getUsername())) {
                 if (groupListView != null) groupListView.getSelectionModel().clearSelection();
                 switchChatTarget(ChatTargetType.DIRECT, newVal);
+            }
+        });
+        userListView.setOnMouseClicked(e -> {
+            if (!isUpdatingUserList) {
+                String selected = userListView.getSelectionModel().getSelectedItem();
+                if (selected != null && !selected.equals(chatClient.getUsername())) {
+                    if (groupListView != null) groupListView.getSelectionModel().clearSelection();
+                    switchChatTarget(ChatTargetType.DIRECT, selected);
+                }
             }
         });
 
@@ -301,9 +324,9 @@ public class MainChatView {
             case BROADCAST:
                 return "BROADCAST";
             case GROUP:
-                return "GROUP:" + targetName;
+                return "GROUP:" + (targetName != null ? targetName.trim().toLowerCase() : "");
             case DIRECT:
-                return "DIRECT:" + (targetName != null ? targetName.toLowerCase() : "");
+                return "DIRECT:" + (targetName != null ? targetName.trim().toLowerCase() : "");
             case UDP_MULTICAST:
                 return "UDP_MULTICAST";
             default:
@@ -317,18 +340,19 @@ public class MainChatView {
         }
         if (msg.getType() == MessageType.CHAT_GROUP) {
             String fullRecipient = msg.getRecipient();
-            return fullRecipient.startsWith("GROUP:") ? fullRecipient : "GROUP:" + fullRecipient;
+            String groupName = fullRecipient != null ? (fullRecipient.startsWith("GROUP:") ? fullRecipient.substring(6) : fullRecipient).trim().toLowerCase() : "";
+            return "GROUP:" + groupName;
         }
         if (msg.getType() == MessageType.FILE_TRANSFER || msg.getType() == MessageType.VOICE_NOTE || msg.getType() == MessageType.CHAT_DIRECT) {
             if ("ALL".equalsIgnoreCase(msg.getRecipient())) {
                 return "BROADCAST";
             }
             if (msg.getRecipient() != null && msg.getRecipient().startsWith("GROUP:")) {
-                return msg.getRecipient();
+                return "GROUP:" + msg.getRecipient().substring(6).trim().toLowerCase();
             }
             boolean isMe = chatClient.getUsername().equalsIgnoreCase(msg.getSender());
             String peer = isMe ? msg.getRecipient() : msg.getSender();
-            return "DIRECT:" + (peer != null ? peer.toLowerCase() : "");
+            return "DIRECT:" + (peer != null ? peer.trim().toLowerCase() : "");
         }
         return "BROADCAST";
     }
@@ -775,26 +799,42 @@ public class MainChatView {
 
     private void updateUserList(List<String> users) {
         Platform.runLater(() -> {
-            String selected = userListView.getSelectionModel().getSelectedItem();
-            userListView.getItems().clear();
+            List<String> filtered = new ArrayList<>();
             for (String u : users) {
                 if (!u.equalsIgnoreCase(chatClient.getUsername())) {
-                    userListView.getItems().add(u);
+                    filtered.add(u);
                 }
             }
-            if (selected != null && userListView.getItems().contains(selected)) {
-                userListView.getSelectionModel().select(selected);
+            if (userListView.getItems().equals(filtered)) {
+                return;
+            }
+            String selected = userListView.getSelectionModel().getSelectedItem();
+            isUpdatingUserList = true;
+            try {
+                userListView.getItems().setAll(filtered);
+                if (selected != null && userListView.getItems().contains(selected)) {
+                    userListView.getSelectionModel().select(selected);
+                }
+            } finally {
+                isUpdatingUserList = false;
             }
         });
     }
 
     private void updateGroupList(List<String> groups) {
         Platform.runLater(() -> {
+            if (groupListView.getItems().equals(groups)) {
+                return;
+            }
             String selected = groupListView.getSelectionModel().getSelectedItem();
-            groupListView.getItems().clear();
-            groupListView.getItems().addAll(groups);
-            if (selected != null && groupListView.getItems().contains(selected)) {
-                groupListView.getSelectionModel().select(selected);
+            isUpdatingGroupList = true;
+            try {
+                groupListView.getItems().setAll(groups);
+                if (selected != null && groupListView.getItems().contains(selected)) {
+                    groupListView.getSelectionModel().select(selected);
+                }
+            } finally {
+                isUpdatingGroupList = false;
             }
         });
     }
