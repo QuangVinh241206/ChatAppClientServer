@@ -63,6 +63,9 @@ public class MainChatView {
     private final AudioHelper.AudioPlayer audioPlayer = new AudioHelper.AudioPlayer();
     private CallWindow activeCallWindow;
 
+    // Quản lý lịch sử tin nhắn theo kênh (Key: "BROADCAST", "GROUP:Name", "DIRECT:Username")
+    private final Map<String, List<NetworkMessage>> chatHistoryMap = new java.util.concurrent.ConcurrentHashMap<>();
+
     // UDP Multicast Service demo
     private UdpMulticastService udpMulticastService;
     private TextArea udpMulticastLogArea;
@@ -115,47 +118,71 @@ public class MainChatView {
         Button broadcastBtn = new Button("📢 Kênh Chung (Broadcast)");
         broadcastBtn.setMaxWidth(Double.MAX_VALUE);
         broadcastBtn.setStyle("-fx-background-color: #ebf8ff; -fx-text-fill: #2b6cb0; -fx-font-weight: bold; -fx-padding: 8 12; -fx-alignment: BASELINE_LEFT; -fx-background-radius: 8; -fx-cursor: hand;");
-        broadcastBtn.setOnAction(e -> switchChatTarget(ChatTargetType.BROADCAST, "ALL"));
+        broadcastBtn.setOnAction(e -> {
+            if (groupListView != null) groupListView.getSelectionModel().clearSelection();
+            if (userListView != null) userListView.getSelectionModel().clearSelection();
+            switchChatTarget(ChatTargetType.BROADCAST, "ALL");
+        });
 
         Button udpLabBtn = new Button("📻 UDP Multicast Demo (IP: 230.0.0.1)");
         udpLabBtn.setMaxWidth(Double.MAX_VALUE);
         udpLabBtn.setStyle("-fx-background-color: #fefcbf; -fx-text-fill: #744210; -fx-font-weight: bold; -fx-padding: 8 12; -fx-alignment: BASELINE_LEFT; -fx-background-radius: 8; -fx-cursor: hand;");
-        udpLabBtn.setOnAction(e -> switchChatTarget(ChatTargetType.UDP_MULTICAST, "230.0.0.1"));
+        udpLabBtn.setOnAction(e -> {
+            if (groupListView != null) groupListView.getSelectionModel().clearSelection();
+            if (userListView != null) userListView.getSelectionModel().clearSelection();
+            switchChatTarget(ChatTargetType.UDP_MULTICAST, "230.0.0.1");
+        });
 
         // Multicast Group Section
-        HBox groupHeader = new HBox(8);
+        HBox groupHeader = new HBox(6);
         groupHeader.setAlignment(Pos.CENTER_LEFT);
         Label groupTitle = new Label("NHÓM CHAT (MULTICAST)");
         groupTitle.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #718096;");
         Region gSpacer = new Region();
         HBox.setHgrow(gSpacer, Priority.ALWAYS);
 
-        Button addGroupBtn = new Button("+ Tạo Nhóm");
+        Button refreshGroupBtn = new Button("🔄");
+        refreshGroupBtn.setTooltip(new Tooltip("Làm mới danh sách nhóm"));
+        refreshGroupBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 2 4; -fx-font-size: 11px;");
+        refreshGroupBtn.setOnAction(e -> chatClient.requestGroupList());
+
+        Button addGroupBtn = new Button("+ Nhóm");
         addGroupBtn.setStyle("-fx-background-color: #edf2f7; -fx-text-fill: #4a5568; -fx-font-size: 11px; -fx-padding: 3 8; -fx-background-radius: 6; -fx-cursor: hand;");
         addGroupBtn.setOnAction(e -> showCreateGroupDialog());
-        groupHeader.getChildren().addAll(groupTitle, gSpacer, addGroupBtn);
+        groupHeader.getChildren().addAll(groupTitle, gSpacer, refreshGroupBtn, addGroupBtn);
 
         groupListView = new ListView<>();
         groupListView.setPrefHeight(140);
         groupListView.setStyle("-fx-background-radius: 6; -fx-border-color: #edf2f7; -fx-border-radius: 6;");
         groupListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null) {
+                if (userListView != null) userListView.getSelectionModel().clearSelection();
+                chatClient.joinGroup(newVal);
                 switchChatTarget(ChatTargetType.GROUP, newVal);
             }
         });
 
         // Direct / Peer Users Section
-        HBox userHeader = new HBox(8);
+        HBox userHeader = new HBox(6);
         userHeader.setAlignment(Pos.CENTER_LEFT);
         Label userTitle = new Label("BẠN BÈ ONLINE (PEER DIRECT)");
         userTitle.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #718096;");
-        userHeader.getChildren().add(userTitle);
+        Region uSpacer = new Region();
+        HBox.setHgrow(uSpacer, Priority.ALWAYS);
+
+        Button refreshUserBtn = new Button("🔄");
+        refreshUserBtn.setTooltip(new Tooltip("Làm mới danh sách bạn bè online"));
+        refreshUserBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 2 4; -fx-font-size: 11px;");
+        refreshUserBtn.setOnAction(e -> chatClient.requestUserList());
+
+        userHeader.getChildren().addAll(userTitle, uSpacer, refreshUserBtn);
 
         userListView = new ListView<>();
         userListView.setPrefHeight(180);
         userListView.setStyle("-fx-background-radius: 6; -fx-border-color: #edf2f7; -fx-border-radius: 6;");
         userListView.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
             if (newVal != null && !newVal.equals(chatClient.getUsername())) {
+                if (groupListView != null) groupListView.getSelectionModel().clearSelection();
                 switchChatTarget(ChatTargetType.DIRECT, newVal);
             }
         });
@@ -269,11 +296,48 @@ public class MainChatView {
         return inputBar;
     }
 
+    private String getConversationKey(ChatTargetType type, String targetName) {
+        switch (type) {
+            case BROADCAST:
+                return "BROADCAST";
+            case GROUP:
+                return "GROUP:" + targetName;
+            case DIRECT:
+                return "DIRECT:" + (targetName != null ? targetName.toLowerCase() : "");
+            case UDP_MULTICAST:
+                return "UDP_MULTICAST";
+            default:
+                return "BROADCAST";
+        }
+    }
+
+    private String getMessageConversationKey(NetworkMessage msg) {
+        if (msg.getType() == MessageType.CHAT_BROADCAST) {
+            return "BROADCAST";
+        }
+        if (msg.getType() == MessageType.CHAT_GROUP) {
+            String fullRecipient = msg.getRecipient();
+            return fullRecipient.startsWith("GROUP:") ? fullRecipient : "GROUP:" + fullRecipient;
+        }
+        if (msg.getType() == MessageType.FILE_TRANSFER || msg.getType() == MessageType.VOICE_NOTE || msg.getType() == MessageType.CHAT_DIRECT) {
+            if ("ALL".equalsIgnoreCase(msg.getRecipient())) {
+                return "BROADCAST";
+            }
+            if (msg.getRecipient() != null && msg.getRecipient().startsWith("GROUP:")) {
+                return msg.getRecipient();
+            }
+            boolean isMe = chatClient.getUsername().equalsIgnoreCase(msg.getSender());
+            String peer = isMe ? msg.getRecipient() : msg.getSender();
+            return "DIRECT:" + (peer != null ? peer.toLowerCase() : "");
+        }
+        return "BROADCAST";
+    }
+
     private void switchChatTarget(ChatTargetType type, String target) {
         this.currentTargetType = type;
         this.currentTargetName = target;
 
-        // Reset tin nhắn hiển thị hoặc load lại
+        // Reset tin nhắn hiển thị
         messageContainer.getChildren().clear();
 
         boolean isDirect = (type == ChatTargetType.DIRECT);
@@ -288,6 +352,7 @@ public class MainChatView {
             case GROUP:
                 chatTitleLabel.setText("👥 Nhóm: " + target);
                 chatSubTitleLabel.setText("Kỹ thuật: TCP Multicast Room (Định tuyến tới các client trong nhóm)");
+                chatClient.joinGroup(target);
                 break;
             case DIRECT:
                 chatTitleLabel.setText("💬 Trò chuyện 1-1 với: " + target);
@@ -300,7 +365,16 @@ public class MainChatView {
                 return;
         }
 
-        addSystemMessage("Bạn đang trò chuyện ở chế độ: " + chatTitleLabel.getText());
+        // Tải lại toàn bộ lịch sử tin nhắn của cuộc trò chuyện này
+        String key = getConversationKey(type, target);
+        List<NetworkMessage> history = chatHistoryMap.get(key);
+        if (history != null && !history.isEmpty()) {
+            for (NetworkMessage m : history) {
+                renderMessageBubble(m);
+            }
+        } else {
+            addSystemMessage("Bạn đang trò chuyện ở chế độ: " + chatTitleLabel.getText());
+        }
     }
 
     private void setupUdpMulticastView() {
@@ -415,6 +489,23 @@ public class MainChatView {
     // --- Xử lý hiển thị tin nhắn (Bong bóng Chat) ---
 
     public void displayMessage(NetworkMessage msg) {
+        String msgKey = getMessageConversationKey(msg);
+        chatHistoryMap.computeIfAbsent(msgKey, k -> new ArrayList<>()).add(msg);
+
+        String currentKey = getConversationKey(currentTargetType, currentTargetName);
+        if (msgKey.equalsIgnoreCase(currentKey)) {
+            renderMessageBubble(msg);
+        } else {
+            // Nếu tin nhắn đến từ kênh khác, hiển thị thông báo nhẹ nhàng
+            boolean isMe = chatClient.getUsername().equalsIgnoreCase(msg.getSender());
+            if (!isMe) {
+                String targetInfo = msgKey.startsWith("GROUP:") ? "Nhóm [" + msgKey.substring(6) + "]" : "[" + msg.getSender() + "]";
+                addSystemMessage("Tin nhắn mới từ " + targetInfo + ": " + (msg.getContent() != null ? msg.getContent() : "Tệp tin"));
+            }
+        }
+    }
+
+    private void renderMessageBubble(NetworkMessage msg) {
         boolean isMe = chatClient.getUsername().equalsIgnoreCase(msg.getSender());
 
         HBox bubbleRow = new HBox();
@@ -629,6 +720,7 @@ public class MainChatView {
             String trimmed = name.trim();
             if (!trimmed.isEmpty()) {
                 chatClient.createGroup(trimmed);
+                switchChatTarget(ChatTargetType.GROUP, trimmed);
             }
         });
     }
@@ -665,22 +757,45 @@ public class MainChatView {
             }
         });
 
-        chatClient.setOnUserListUpdated(users -> {
+        chatClient.setOnUserListUpdated(this::updateUserList);
+        chatClient.setOnGroupListUpdated(this::updateGroupList);
+
+        chatClient.setOnConnectionError(err -> {
+            showWarning("Lỗi mạng: " + err);
+        });
+
+        // 1. Tải ngay lập tức từ bộ nhớ đệm
+        updateUserList(chatClient.getCachedUserList());
+        updateGroupList(chatClient.getCachedGroupList());
+
+        // 2. Gửi yêu cầu cập nhật danh sách mới nhất từ Server
+        chatClient.requestUserList();
+        chatClient.requestGroupList();
+    }
+
+    private void updateUserList(List<String> users) {
+        Platform.runLater(() -> {
+            String selected = userListView.getSelectionModel().getSelectedItem();
             userListView.getItems().clear();
             for (String u : users) {
                 if (!u.equalsIgnoreCase(chatClient.getUsername())) {
                     userListView.getItems().add(u);
                 }
             }
+            if (selected != null && userListView.getItems().contains(selected)) {
+                userListView.getSelectionModel().select(selected);
+            }
         });
+    }
 
-        chatClient.setOnGroupListUpdated(groups -> {
+    private void updateGroupList(List<String> groups) {
+        Platform.runLater(() -> {
+            String selected = groupListView.getSelectionModel().getSelectedItem();
             groupListView.getItems().clear();
             groupListView.getItems().addAll(groups);
-        });
-
-        chatClient.setOnConnectionError(err -> {
-            showWarning("Lỗi mạng: " + err);
+            if (selected != null && groupListView.getItems().contains(selected)) {
+                groupListView.getSelectionModel().select(selected);
+            }
         });
     }
 

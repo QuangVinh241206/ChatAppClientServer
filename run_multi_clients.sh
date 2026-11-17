@@ -18,7 +18,7 @@ if [ ! -d "target/lib" ] || [ ! -f "target/ChatAppClientServer-1.0-SNAPSHOT.jar"
     mvn clean package -DskipTests
 fi
 
-JAVA_CMD="java --module-path target/lib --add-modules javafx.controls,javafx.fxml,javafx.media -cp target/ChatAppClientServer-1.0-SNAPSHOT.jar:target/lib/* com.chatapp.client.ClientApp"
+JAVA_CMD="java --module-path target/lib --add-modules javafx.controls,javafx.fxml,javafx.media -cp target/classes:target/ChatAppClientServer-1.0-SNAPSHOT.jar:target/lib/* com.chatapp.client.ClientApp"
 
 CLIENTS=("Alice" "Bob" "Charlie" "David" "Emma" "Frank")
 

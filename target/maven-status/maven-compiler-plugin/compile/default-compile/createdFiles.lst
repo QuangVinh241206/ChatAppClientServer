@@ -1,14 +1,11 @@
 com\chatapp\server\ClientHandler$1.class
 com\chatapp\client\ui\EmojiPickerPopup.class
 com\chatapp\client\ChatClient$1.class
-com\chatapp\client\ClientApp.class
 com\chatapp\common\MessageType.class
 com\chatapp\client\media\UdpVideoCall.class
 com\chatapp\server\ChatServer.class
 com\chatapp\client\ui\MainChatView$1.class
 com\chatapp\server\ClientHandler.class
-com\chatapp\client\ui\MainChatView$ChatTargetType.class
-com\chatapp\client\ui\MainChatView.class
 com\chatapp\common\AudioHelper$AudioPlayer.class
 com\chatapp\client\ChatClient.class
 com\chatapp\client\ui\CallWindow.class

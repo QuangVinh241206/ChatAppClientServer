@@ -112,14 +112,28 @@ public class ChatServer {
     public void multicastToGroup(NetworkMessage message) {
         String fullRecipient = message.getRecipient(); // Dạng "GROUP:TenNhom"
         String groupName = fullRecipient.startsWith("GROUP:") ? fullRecipient.substring(6) : fullRecipient;
+
+        // Đảm bảo người gửi cũng tự động tham gia vào nhóm này
+        if (message.getSender() != null) {
+            groupManager.joinGroup(groupName, message.getSender());
+        }
+
         Set<String> members = groupManager.getGroupMembers(groupName);
 
-        log("MULTICAST tin nhắn từ [" + message.getSender() + "] tới nhóm [" + groupName + "] (" + members.size() + " thành viên)");
+        log("MULTICAST tin nhắn từ [" + message.getSender() + "] tới nhóm [" + groupName + "] (" + members.size() + " thành viên: " + members + ")");
 
         for (String memberName : members) {
             ClientHandler handler = connectedClients.get(memberName.toLowerCase());
             if (handler != null) {
                 handler.sendResponse(message);
+            }
+        }
+
+        // Đảm bảo chính người gửi cũng nhận được tin nhắn nếu chưa có trong members
+        if (message.getSender() != null) {
+            ClientHandler senderHandler = connectedClients.get(message.getSender().toLowerCase());
+            if (senderHandler != null && !members.contains(message.getSender())) {
+                senderHandler.sendResponse(message);
             }
         }
     }

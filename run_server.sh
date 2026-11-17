@@ -22,5 +22,5 @@ fi
 # Chay ung dung Server tren Linux voi classpath su dung dau hai cham (:)
 java --module-path target/lib \
      --add-modules javafx.controls,javafx.fxml,javafx.media \
-     -cp "target/ChatAppClientServer-1.0-SNAPSHOT.jar:target/lib/*" \
+     -cp "target/classes:target/ChatAppClientServer-1.0-SNAPSHOT.jar:target/lib/*" \
      com.chatapp.server.ServerApp "$@"

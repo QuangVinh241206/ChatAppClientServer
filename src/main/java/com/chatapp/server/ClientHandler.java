@@ -84,6 +84,18 @@ public class ClientHandler implements Runnable {
                 }
                 break;
 
+            case USER_LIST:
+                NetworkMessage userListMsg = new NetworkMessage(MessageType.USER_LIST, "SERVER", this.username, null);
+                userListMsg.setUserList(server.getOnlineUsers());
+                sendResponse(userListMsg);
+                break;
+
+            case GROUP_LIST:
+                NetworkMessage groupListMsg = new NetworkMessage(MessageType.GROUP_LIST, "SERVER", this.username, null);
+                groupListMsg.setGroupList(server.getGroupManager().getAllGroupNames());
+                sendResponse(groupListMsg);
+                break;
+
             case GROUP_CREATE:
                 boolean created = server.getGroupManager().createGroup(msg.getContent(), this.username);
                 if (created) {
@@ -136,6 +148,11 @@ public class ClientHandler implements Runnable {
 
         this.username = reqUser;
         server.registerClient(this.username, this);
+
+        // Tự động thêm người dùng vào tất cả các phòng nhóm mặc định trên Server
+        for (String groupName : server.getGroupManager().getAllGroupNames()) {
+            server.getGroupManager().joinGroup(groupName, this.username);
+        }
 
         // Gửi phản hồi đăng nhập thành công
         NetworkMessage successMsg = new NetworkMessage(MessageType.LOGIN_SUCCESS, "SERVER", this.username, "Đăng nhập thành công!");

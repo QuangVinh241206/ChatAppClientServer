@@ -13,7 +13,7 @@ $clients = @("Alice", "Bob", "Charlie", "David", "Emma", "Frank")
 $javaArgs = @(
     "--module-path", "target\lib",
     "--add-modules", "javafx.controls,javafx.fxml,javafx.media",
-    "-cp", "target\ChatAppClientServer-1.0-SNAPSHOT.jar;target\lib\*",
+    "-cp", "target\classes;target\ChatAppClientServer-1.0-SNAPSHOT.jar;target\lib\*",
     "com.chatapp.client.ClientApp"
 )
 

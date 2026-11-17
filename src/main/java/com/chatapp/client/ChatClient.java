@@ -7,8 +7,10 @@ import javafx.application.Platform;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 /**
@@ -22,6 +24,10 @@ public class ChatClient {
     private String username;
     private volatile boolean isConnected = false;
     private Thread receiveThread;
+
+    // Bộ nhớ đệm danh sách người dùng và nhóm để tránh mất mát khi UI chưa kịp gán listener
+    private final List<String> cachedUserList = new CopyOnWriteArrayList<>();
+    private final List<String> cachedGroupList = new CopyOnWriteArrayList<>();
 
     // Callbacks xử lý các sự kiện mạng
     private Consumer<NetworkMessage> onMessageReceived;
@@ -81,12 +87,20 @@ public class ChatClient {
         Platform.runLater(() -> {
             switch (msg.getType()) {
                 case LOGIN_SUCCESS:
-                    if (onLoginSuccess != null) onLoginSuccess.run();
-                    if (msg.getUserList() != null && onUserListUpdated != null) {
-                        onUserListUpdated.accept(msg.getUserList());
+                    if (msg.getUserList() != null) {
+                        cachedUserList.clear();
+                        cachedUserList.addAll(msg.getUserList());
                     }
-                    if (msg.getGroupList() != null && onGroupListUpdated != null) {
-                        onGroupListUpdated.accept(msg.getGroupList());
+                    if (msg.getGroupList() != null) {
+                        cachedGroupList.clear();
+                        cachedGroupList.addAll(msg.getGroupList());
+                    }
+                    if (onLoginSuccess != null) onLoginSuccess.run();
+                    if (onUserListUpdated != null) {
+                        onUserListUpdated.accept(new ArrayList<>(cachedUserList));
+                    }
+                    if (onGroupListUpdated != null) {
+                        onGroupListUpdated.accept(new ArrayList<>(cachedGroupList));
                     }
                     break;
 
@@ -96,11 +110,23 @@ public class ChatClient {
                     break;
 
                 case USER_LIST:
-                    if (onUserListUpdated != null) onUserListUpdated.accept(msg.getUserList());
+                    if (msg.getUserList() != null) {
+                        cachedUserList.clear();
+                        cachedUserList.addAll(msg.getUserList());
+                        if (onUserListUpdated != null) {
+                            onUserListUpdated.accept(new ArrayList<>(cachedUserList));
+                        }
+                    }
                     break;
 
                 case GROUP_LIST:
-                    if (onGroupListUpdated != null) onGroupListUpdated.accept(msg.getGroupList());
+                    if (msg.getGroupList() != null) {
+                        cachedGroupList.clear();
+                        cachedGroupList.addAll(msg.getGroupList());
+                        if (onGroupListUpdated != null) {
+                            onGroupListUpdated.accept(new ArrayList<>(cachedGroupList));
+                        }
+                    }
                     break;
 
                 case SYSTEM_NOTIFICATION:
@@ -187,6 +213,16 @@ public class ChatClient {
         sendRawMessage(msg);
     }
 
+    public void requestUserList() {
+        NetworkMessage msg = new NetworkMessage(MessageType.USER_LIST, username, "SERVER", null);
+        sendRawMessage(msg);
+    }
+
+    public void requestGroupList() {
+        NetworkMessage msg = new NetworkMessage(MessageType.GROUP_LIST, username, "SERVER", null);
+        sendRawMessage(msg);
+    }
+
     // Tín hiệu cuộc gọi UDP
     public void sendCallRequest(String recipient, int udpPort, boolean isVideo) {
         NetworkMessage msg = new NetworkMessage(MessageType.CALL_REQUEST, username, recipient, isVideo ? "Yêu cầu Video Call..." : "Yêu cầu Voice Call...");
@@ -233,9 +269,30 @@ public class ChatClient {
     public String getUsername() { return username; }
     public boolean isConnected() { return isConnected; }
 
+    public List<String> getCachedUserList() {
+        return new ArrayList<>(cachedUserList);
+    }
+
+    public List<String> getCachedGroupList() {
+        return new ArrayList<>(cachedGroupList);
+    }
+
     public void setOnMessageReceived(Consumer<NetworkMessage> listener) { this.onMessageReceived = listener; }
-    public void setOnUserListUpdated(Consumer<List<String>> listener) { this.onUserListUpdated = listener; }
-    public void setOnGroupListUpdated(Consumer<List<String>> listener) { this.onGroupListUpdated = listener; }
+
+    public void setOnUserListUpdated(Consumer<List<String>> listener) {
+        this.onUserListUpdated = listener;
+        if (listener != null && !cachedUserList.isEmpty()) {
+            Platform.runLater(() -> listener.accept(new ArrayList<>(cachedUserList)));
+        }
+    }
+
+    public void setOnGroupListUpdated(Consumer<List<String>> listener) {
+        this.onGroupListUpdated = listener;
+        if (listener != null && !cachedGroupList.isEmpty()) {
+            Platform.runLater(() -> listener.accept(new ArrayList<>(cachedGroupList)));
+        }
+    }
+
     public void setOnSystemNotification(Consumer<String> listener) { this.onSystemNotification = listener; }
     public void setOnConnectionError(Consumer<String> listener) { this.onConnectionError = listener; }
     public void setOnLoginSuccess(Runnable listener) { this.onLoginSuccess = listener; }
